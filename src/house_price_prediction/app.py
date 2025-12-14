@@ -97,7 +97,12 @@ def load_model():
 @app.route('/')
 def index():
     """Serve the main frontend page"""
-    return render_template('index.html')
+    try:
+        return render_template('index.html')
+    except Exception:
+        # Fallback: redirect to predict page if index.html not found
+        from flask import redirect
+        return redirect('/predict')
 
 
 @app.route('/health', methods=['GET'])
