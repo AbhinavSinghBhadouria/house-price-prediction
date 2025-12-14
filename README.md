@@ -70,8 +70,3 @@ docker-compose up
 ## 📊 Model Performance
 
 - **R2 Score**: 90.97% (Test Set)
-- **Target**: 85% ✓ Exceeded
-
-## 📝 License
-
-MIT License
