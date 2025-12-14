@@ -134,6 +134,16 @@ def predict():
                     addr.split(',')[-1].strip().title() if isinstance(addr, str) and ',' in addr 
                     else 'Unknown')
         
+        # Check if CITY_NAME is in known cities
+        if 'CITY_NAME' in df.columns and hasattr(preprocessor, 'label_encoders') and 'CITY_NAME' in preprocessor.label_encoders:
+            known_cities = set(preprocessor.label_encoders['CITY_NAME'].classes_)
+            for idx, row in df.iterrows():
+                city_name = str(row['CITY_NAME']).strip()
+                if city_name and city_name not in known_cities:
+                    return jsonify({
+                        "error": f"Sorry, dataset does not contain data for the city '{city_name}'. The model is trained on {len(known_cities)} Indian cities. Please try a different city or check the city name spelling."
+                    }), 400
+        
         # Reorder DataFrame columns to match preprocessor's expected order
         # This is critical because scikit-learn transformers (imputer, scaler) expect columns in the same order as during fit
         if hasattr(preprocessor, 'feature_names') and preprocessor.feature_names:
