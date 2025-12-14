@@ -17,6 +17,33 @@ class HousePricePreprocessor:
         self.imputer = SimpleImputer(strategy='median')
         self.feature_names = None
         self.is_fitted = False
+    
+    def extract_city_from_address(self, address):
+        """Extract city name from address string"""
+        if not isinstance(address, str) or not address.strip():
+            return 'Unknown'
+        
+        # Clean the address
+        address = address.strip()
+        
+        # Split by comma and take the last part (usually the city)
+        parts = [part.strip() for part in address.split(',')]
+        
+        # If multiple parts, the last one is likely the city
+        if len(parts) > 1:
+            city = parts[-1]
+        else:
+            # If no comma, try to extract from common patterns
+            city = address
+        
+        # Clean up common suffixes and prefixes
+        city = city.replace('Road', '').replace('Nagar', '').replace('Colony', '').strip()
+        
+        # Capitalize properly
+        if city:
+            city = city.title()
+        
+        return city if city else 'Unknown'
         
     def create_advanced_features(self, df):
         """
@@ -24,9 +51,16 @@ class HousePricePreprocessor:
         - Rooms per household
         - Population ratios
         - Income bands
+        - Extract city names from addresses
         """
         
         df = df.copy()
+        
+        # Extract city names from ADDRESS if CITY_NAME is not properly set
+        if 'ADDRESS' in df.columns and 'CITY_NAME' in df.columns:
+            # Only extract if CITY_NAME is mostly "Unknown" or empty
+            if df['CITY_NAME'].isin(['Unknown', '']).sum() > len(df) * 0.8:
+                df['CITY_NAME'] = df['ADDRESS'].apply(self.extract_city_from_address)
         
         # Rooms per household
         if 'total_rooms' in df.columns and 'households' in df.columns:

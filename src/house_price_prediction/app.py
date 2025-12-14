@@ -126,6 +126,14 @@ def predict():
         else:
             return jsonify({"error": "Invalid input format"}), 400
         
+        # Extract city from ADDRESS if CITY_NAME is not properly set
+        if 'ADDRESS' in df.columns and 'CITY_NAME' in df.columns:
+            # Only extract if CITY_NAME is mostly empty or "Unknown"
+            if df['CITY_NAME'].isin(['Unknown', '', None]).sum() > len(df) * 0.8:
+                df['CITY_NAME'] = df['ADDRESS'].apply(lambda addr: 
+                    addr.split(',')[-1].strip().title() if isinstance(addr, str) and ',' in addr 
+                    else 'Unknown')
+        
         # Reorder DataFrame columns to match preprocessor's expected order
         # This is critical because scikit-learn transformers (imputer, scaler) expect columns in the same order as during fit
         if hasattr(preprocessor, 'feature_names') and preprocessor.feature_names:
