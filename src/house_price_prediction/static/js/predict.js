@@ -35,7 +35,12 @@ function initOpenStreetMap() {
         center: defaultCenter,
         zoom: 5,
         zoomControl: true,
-        attributionControl: true
+        attributionControl: true,
+        maxBounds: [
+            [6.0, 68.0],  // Southwest corner of India
+            [37.0, 98.0]  // Northeast corner of India
+        ],
+        maxBoundsViscosity: 1.0  // Prevents dragging outside bounds
     });
     
     // Add dark theme tile layer
@@ -110,7 +115,16 @@ function initGoogleMap() {
         ],
         mapTypeControl: false,
         streetViewControl: false,
-        fullscreenControl: true
+        fullscreenControl: true,
+        restriction: {
+            latLngBounds: {
+                north: 37.0,  // Northeast latitude
+                south: 6.0,   // Southwest latitude
+                east: 98.0,   // Northeast longitude
+                west: 68.0    // Southwest longitude
+            },
+            strictBounds: true
+        }
     });
     
     // Initialize geocoder
@@ -183,7 +197,7 @@ function setupNominatimSearch() {
 async function searchAddress(query) {
     try {
         const response = await fetch(
-            `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&countrycodes=in`
+            `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&countrycodes=in&bounded=1&viewbox=68.0,37.0,98.0,6.0`
         );
         const data = await response.json();
         
@@ -200,6 +214,30 @@ async function searchAddress(query) {
 
 // Universal function to place marker (works with both map types)
 function placeMarkerAndGetCoordinates(location) {
+    // Validate coordinates are within India bounds
+    let lat, lng;
+    if (useGoogleMaps) {
+        lat = location.lat();
+        lng = location.lng();
+    } else {
+        [lat, lng] = Array.isArray(location) ? location : [location.lat, location.lng];
+    }
+    
+    // India bounds: lat 6-37, lng 68-98
+    if (lat < 6 || lat > 37 || lng < 68 || lng > 98) {
+        // Use the error card to show message
+        const errorCard = document.getElementById('errorCard');
+        const errorMessage = document.getElementById('errorMessage');
+        if (errorCard && errorMessage) {
+            errorMessage.textContent = 'Please select a location within India. The model is trained on Indian real estate data.';
+            errorCard.style.display = 'block';
+            hideResults();
+        } else {
+            alert('Please select a location within India. The model is trained on Indian real estate data.');
+        }
+        return;
+    }
+    
     if (useGoogleMaps) {
         // Google Maps
         marker.setPosition(location);
@@ -208,7 +246,6 @@ function placeMarkerAndGetCoordinates(location) {
         updateCoordinates(location);
     } else {
         // OpenStreetMap
-        const [lat, lng] = Array.isArray(location) ? location : [location.lat, location.lng];
         marker.setLatLng([lat, lng]);
         map.setView([lat, lng], 15);
         updateCoordinates([lat, lng]);

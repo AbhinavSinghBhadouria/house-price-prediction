@@ -108,6 +108,14 @@ def predict():
         if not data:
             return jsonify({"error": "No JSON data provided"}), 400
         
+        # Validate coordinates are within India
+        lat = data.get('LATITUDE', 0)
+        lng = data.get('LONGITUDE', 0)
+        if not (6 <= lat <= 37 and 68 <= lng <= 98):
+            return jsonify({
+                "error": "Coordinates must be within India (latitude 6-37, longitude 68-98). The model is trained on Indian real estate data."
+            }), 400
+        
         # Convert to DataFrame
         if isinstance(data, dict):
             # Single prediction

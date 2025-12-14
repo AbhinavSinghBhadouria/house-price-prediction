@@ -36,5 +36,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import requests; import os; port = os.environ.get('PORT', '5000'); requests.get(f'http://localhost:{port}/health')"
 
 # Run with Gunicorn for production (use PORT env var for cloud platforms)
-CMD gunicorn --bind 0.0.0.0:${PORT:-5000} --workers 4 --timeout 120 src.house_price_prediction.app:app
+CMD gunicorn --bind 0.0.0.0:${PORT:-5000} --workers 1 --timeout 120 src.house_price_prediction.app:app
 
