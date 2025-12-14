@@ -1,1 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>House Price Prediction - AI Valuation System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/predict.css') }}">
+    <!-- Leaflet.js (OpenStreetMap) - FREE, No API Key Required -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Google Maps API (Optional - only loads if API key is set) -->
+    {% if google_maps_key and google_maps_key != 'YOUR_API_KEY' %}
+    <script>
+        window.google_maps_key = '{{ google_maps_key }}';
+        window.initMap = function() {
+            // This will be defined in predict.js
+        };
+    </script>
+    <script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_key }}&libraries=places&callback=initMap" async defer></script>
+    {% else %}
+    <script>
+        window.google_maps_key = 'YOUR_API_KEY';
+    </script>
+    {% endif %}
+</head>
+<body>
+    <div class="animated-bg"></div>
+    <div class="grid-overlay"></div>
+    
+    <div class="container">
+        <!-- Header -->
+        <header class="main-header">
+            <div class="header-content">
+                <div class="logo-section">
+                    <div class="logo-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                        </svg>
+                    </div>
+                    <h1 class="header-title">
+                        <span class="title-main">FUTUREHOME</span>
+                        <span class="title-sub">PREDICT</span>
+                    </h1>
+                </div>
+                <div class="header-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">Accuracy</span>
+                        <span class="stat-value">90.97%</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Model</span>
+                        <span class="stat-value">RF</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <!-- Prediction Card -->
+            <div class="prediction-card">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <span class="title-icon">📊</span>
+                        Property Valuation Input
+                    </h2>
+                    <div class="card-glow"></div>
+                </div>
+
+                <form id="predictionForm" class="prediction-form">
+                    <div class="form-section">
+                        <h3 class="section-title">Basic Information</h3>
+                        <div class="form-grid">
+                            <!-- Property Type -->
+                            <div class="form-group">
+                                <label for="bhk_or_rk" class="form-label">
+                                    <span class="label-icon">🏠</span>
+                                    Property Type <span class="required">*</span>
+                                </label>
+                                <div class="select-wrapper">
+                                    <select id="bhk_or_rk" name="BHK_OR_RK" required class="form-select">
+                                        <option value="">Select Property Type</option>
+                                        <option value="BHK">BHK (Bedroom, Hall, Kitchen)</option>
+                                        <option value="RK">RK (Room, Kitchen)</option>
+                                    </select>
+                                    <div class="select-arrow"></div>
+                                </div>
+                            </div>
+
+                            <!-- Number of Bedrooms -->
+                            <div class="form-group">
+                                <label for="bhk_no" class="form-label">
+                                    <span class="label-icon">🛏️</span>
+                                    Number of Bedrooms <span class="required">*</span>
+                                </label>
+                                <input type="number" id="bhk_no" name="BHK_NO." min="1" max="10" required 
+                                       class="form-input" placeholder="e.g., 3">
+                            </div>
+
+                            <!-- Area in Square Feet -->
+                            <div class="form-group">
+                                <label for="square_ft" class="form-label">
+                                    <span class="label-icon">📐</span>
+                                    Area (Square Feet) <span class="required">*</span>
+                                </label>
+                                <input type="number" id="square_ft" name="SQUARE_FT" min="100" step="0.01" required 
+                                       class="form-input" placeholder="e.g., 1500">
+                            </div>
+
+                            <!-- Posted By -->
+                            <div class="form-group">
+                                <label for="posted_by" class="form-label">
+                                    <span class="label-icon">👤</span>
+                                    Posted By <span class="required">*</span>
+                                </label>
+                                <div class="select-wrapper">
+                                    <select id="posted_by" name="POSTED_BY" required class="form-select">
+                                        <option value="">Select...</option>
+                                        <option value="Owner">Owner</option>
+                                        <option value="Dealer">Dealer</option>
+                                        <option value="Builder">Builder</option>
+                                    </select>
+                                    <div class="select-arrow"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3 class="section-title">Location Details</h3>
+                        <div class="form-grid">
+                            <!-- Address Search -->
+                            <div class="form-group full-width">
+                                <label for="address" class="form-label">
+                                    <span class="label-icon">🔍</span>
+                                    Search Location
+                                </label>
+                                <input type="text" id="address" name="ADDRESS" 
+                                       class="form-input" placeholder="Search for an address or place...">
+                                <small class="help-text">Type an address to search, or click on the map below</small>
+                            </div>
+
+                            <!-- Google Maps Picker -->
+                            <div class="form-group full-width">
+                                <label class="form-label">
+                                    <span class="label-icon">🗺️</span>
+                                    Select Location on Map <span class="required">*</span>
+                                </label>
+                                <div id="map-container" class="map-container">
+                                    <div id="map" class="google-map"></div>
+                                    <div class="map-instructions">
+                                        <span class="map-icon">📍</span>
+                                        Click on the map to select location
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Coordinates Display -->
+                            <div class="form-group full-width">
+                                <label class="form-label">
+                                    <span class="label-icon">📍</span>
+                                    Coordinates <span class="required">*</span>
+                                </label>
+                                <div class="location-group">
+                                    <div class="input-wrapper">
+                                        <input type="number" id="latitude" name="LATITUDE" 
+                                               placeholder="Latitude" step="0.000001" required 
+                                               class="form-input">
+                                        <span class="input-label">Latitude</span>
+                                    </div>
+                                    <div class="input-wrapper">
+                                        <input type="number" id="longitude" name="LONGITUDE" 
+                                               placeholder="Longitude" step="0.000001" required 
+                                               class="form-input">
+                                        <span class="input-label">Longitude</span>
+                                    </div>
+                                </div>
+                                <small class="help-text">Coordinates are automatically filled when you select a location on the map, or enter manually</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3 class="section-title">Property Status</h3>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="under_construction" class="form-label">
+                                    <span class="label-icon">🏗️</span>
+                                    Under Construction
+                                </label>
+                                <div class="toggle-group">
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="under_construction" name="UNDER_CONSTRUCTION" value="1">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                    <span class="toggle-label">Yes / No</span>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="rera" class="form-label">
+                                    <span class="label-icon">✅</span>
+                                    RERA Approved
+                                </label>
+                                <div class="toggle-group">
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="rera" name="RERA" value="1">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                    <span class="toggle-label">Yes / No</span>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="ready_to_move" class="form-label">
+                                    <span class="label-icon">🚚</span>
+                                    Ready to Move
+                                </label>
+                                <div class="toggle-group">
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="ready_to_move" name="READY_TO_MOVE" value="1">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                    <span class="toggle-label">Yes / No</span>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="resale" class="form-label">
+                                    <span class="label-icon">🔄</span>
+                                    Resale
+                                </label>
+                                <div class="toggle-group">
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="resale" name="RESALE" value="1">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                    <span class="toggle-label">Yes / No</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" id="predictBtn" class="btn-primary">
+                            <span class="btn-content">
+                                <span class="btn-icon">🚀</span>
+                                <span id="btnText">Predict Price</span>
+                            </span>
+                            <span id="btnLoader" class="btn-loader" style="display: none;">
+                                <div class="spinner"></div>
+                            </span>
+                            <div class="btn-glow"></div>
+                        </button>
+                        <button type="reset" class="btn-secondary">
+                            <span class="btn-icon">🔄</span>
+                            Clear Form
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Results Card -->
+            <div id="resultsCard" class="results-card" style="display: none;">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <span class="title-icon">💰</span>
+                        Valuation Result
+                    </h2>
+                    <div class="card-glow"></div>
+                </div>
+                <div class="result-content">
+                    <div class="price-display">
+                        <div class="price-label">Estimated Property Value</div>
+                        <div class="price-value" id="predictedPrice">₹0</div>
+                        <div class="price-subtitle">AI-Powered Prediction</div>
+                    </div>
+                    <div class="result-details">
+                        <div class="detail-card">
+                            <div class="detail-icon">⚡</div>
+                            <div class="detail-info">
+                                <span class="detail-label">Inference Time</span>
+                                <span class="detail-value" id="inferenceTime">-</span>
+                            </div>
+                        </div>
+                        <div class="detail-card">
+                            <div class="detail-icon">🎯</div>
+                            <div class="detail-info">
+                                <span class="detail-label">Model Accuracy</span>
+                                <span class="detail-value">90.97% R²</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <button type="button" class="btn-secondary" onclick="hideResults()">
+                    <span class="btn-icon">➕</span>
+                    Predict Another
+                </button>
+            </div>
+
+            <!-- Error Card -->
+            <div id="errorCard" class="error-card" style="display: none;">
+                <div class="error-icon">⚠️</div>
+                <h3>Prediction Error</h3>
+                <p id="errorMessage"></p>
+                <button type="button" class="btn-secondary" onclick="hideError()">Close</button>
+            </div>
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/predict.js') }}?v=2"></script>
+</body>
+</html>
 
