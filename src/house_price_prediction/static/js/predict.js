@@ -5,6 +5,26 @@
 
 const API_BASE_URL = window.location.origin;
 
+// Helper function for logging (only in development)
+function logToAgent(location, message, data) {
+    // Only log in development (localhost)
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        fetch('http://127.0.0.1:7242/ingest/effbcd9e-3a4a-4ad1-8bda-7a6174db52ca', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                location: location,
+                message: message,
+                data: data,
+                timestamp: Date.now(),
+                sessionId: 'debug-session',
+                runId: 'run1',
+                hypothesisId: 'C'
+            })
+        }).catch(() => {}); // Silently fail if logging service unavailable
+    }
+}
+
 // Map variables (works with both OpenStreetMap and Google Maps)
 let map;
 let marker;
@@ -261,19 +281,7 @@ async function reverseGeocodeNominatim(lat, lng) {
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/effbcd9e-3a4a-4ad1-8bda-7a6174db52ca', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-            location: 'predict.js:270',
-            message: 'DOMContentLoaded - predict page',
-            data: {},
-            timestamp: Date.now(),
-            sessionId: 'debug-session',
-            runId: 'run1',
-            hypothesisId: 'C'
-        })
-    }).catch(() => {});
+    logToAgent('predict.js:270', 'DOMContentLoaded - predict page', {});
     // #endregion
     
     // Add smooth page transition
@@ -313,38 +321,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('predictionForm');
     if (form) {
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/effbcd9e-3a4a-4ad1-8bda-7a6174db52ca', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                location: 'predict.js:310',
-                message: 'Form element found, setting up submit handler',
-                data: {formId: form.id},
-                timestamp: Date.now(),
-                sessionId: 'debug-session',
-                runId: 'run1',
-                hypothesisId: 'C'
-            })
-        }).catch(() => {});
+        logToAgent('predict.js:310', 'Form element found, setting up submit handler', {formId: form.id});
         // #endregion
         
         // Attach form submission handler
         form.addEventListener('submit', handleFormSubmit);
     } else {
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/effbcd9e-3a4a-4ad1-8bda-7a6174db52ca', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                location: 'predict.js:320',
-                message: 'Form element NOT found',
-                data: {},
-                timestamp: Date.now(),
-                sessionId: 'debug-session',
-                runId: 'run1',
-                hypothesisId: 'C'
-            })
-        }).catch(() => {});
+        logToAgent('predict.js:320', 'Form element NOT found', {});
         // #endregion
         console.error('Prediction form not found!');
     }
@@ -355,19 +339,7 @@ async function handleFormSubmit(e) {
     e.preventDefault();
     
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/effbcd9e-3a4a-4ad1-8bda-7a6174db52ca', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-            location: 'predict.js:375',
-            message: 'Form submission started',
-            data: {timestamp: Date.now()},
-            timestamp: Date.now(),
-            sessionId: 'debug-session',
-            runId: 'run1',
-            hypothesisId: 'A'
-        })
-    }).catch(() => {});
+    logToAgent('predict.js:375', 'Form submission started', {timestamp: Date.now()});
     // #endregion
     
     const formData = new FormData(e.target);
@@ -401,50 +373,26 @@ async function handleFormSubmit(e) {
     if (data['LATITUDE']) data['LATITUDE'] = parseFloat(data['LATITUDE']) || 0;
     
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/effbcd9e-3a4a-4ad1-8bda-7a6174db52ca', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-            location: 'predict.js:390',
-            message: 'Form data converted',
-            data: {
+    logToAgent('predict.js:390', 'Form data converted', {
                 keys: Object.keys(data),
                 values: data,
                 hasRequired: !!(data['BHK_OR_RK'] && data['BHK_NO.'] && data['SQUARE_FT'] && data['POSTED_BY'] && data['LONGITUDE'] && data['LATITUDE'])
-            },
-            timestamp: Date.now(),
-            sessionId: 'debug-session',
-            runId: 'run1',
-            hypothesisId: 'A'
-        })
-    }).catch(() => {});
+            });
     // #endregion
     
     // Validate required fields
     if (!data['BHK_OR_RK'] || !data['BHK_NO.'] || !data['SQUARE_FT'] || !data['POSTED_BY'] || !data['LONGITUDE'] || !data['LATITUDE']) {
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/effbcd9e-3a4a-4ad1-8bda-7a6174db52ca', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                location: 'predict.js:410',
-                message: 'Validation failed - missing required fields',
-                data: {
-                    missing: {
-                        BHK_OR_RK: !data['BHK_OR_RK'],
-                        BHK_NO: !data['BHK_NO.'],
-                        SQUARE_FT: !data['SQUARE_FT'],
-                        POSTED_BY: !data['POSTED_BY'],
-                        LONGITUDE: !data['LONGITUDE'],
-                        LATITUDE: !data['LATITUDE']
-                    }
-                },
-                timestamp: Date.now(),
-                sessionId: 'debug-session',
-                runId: 'run1',
-                hypothesisId: 'A'
-            })
-        }).catch(() => {});
+        logToAgent('predict.js:410', 'Validation failed - missing required fields', {
+            missing: {
+                BHK_OR_RK: !data['BHK_OR_RK'],
+                BHK_NO: !data['BHK_NO.'],
+                SQUARE_FT: !data['SQUARE_FT'],
+                POSTED_BY: !data['POSTED_BY'],
+                LONGITUDE: !data['LONGITUDE'],
+                LATITUDE: !data['LATITUDE']
+            }
+        });
         // #endregion
         showError('Please fill in all required fields (marked with *)');
         return;
@@ -463,23 +411,11 @@ async function handleFormSubmit(e) {
     hideError();
     
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/effbcd9e-3a4a-4ad1-8bda-7a6174db52ca', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-            location: 'predict.js:440',
-            message: 'Sending API request',
-            data: {
-                url: `${API_BASE_URL}/predict`,
-                dataKeys: Object.keys(data),
-                dataSample: data
-            },
-            timestamp: Date.now(),
-            sessionId: 'debug-session',
-            runId: 'run1',
-            hypothesisId: 'B'
-        })
-    }).catch(() => {});
+    logToAgent('predict.js:440', 'Sending API request', {
+        url: `${API_BASE_URL}/predict`,
+        dataKeys: Object.keys(data),
+        dataSample: data
+    });
     // #endregion
     
     try {
@@ -492,58 +428,28 @@ async function handleFormSubmit(e) {
         });
         
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/effbcd9e-3a4a-4ad1-8bda-7a6174db52ca', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                location: 'predict.js:465',
-                message: 'API response received',
-                data: {
+        logToAgent('predict.js:465', 'API response received', {
                     status: response.status,
                     statusText: response.statusText,
                     ok: response.ok,
                     headers: Object.fromEntries(response.headers.entries())
-                },
-                timestamp: Date.now(),
-                sessionId: 'debug-session',
-                runId: 'run1',
-                hypothesisId: 'B'
-            })
-        }).catch(() => {});
+                });
         // #endregion
         
         const result = await response.json();
         
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/effbcd9e-3a4a-4ad1-8bda-7a6174db52ca', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                location: 'predict.js:485',
-                message: 'Response parsed',
-                data: {
+        logToAgent('predict.js:485', 'Response parsed', {
                     hasPredictedPrice: 'predicted_price' in result,
                     hasPredictions: 'predictions' in result,
                     resultKeys: Object.keys(result),
                     resultSample: result
-                },
-                timestamp: Date.now(),
-                sessionId: 'debug-session',
-                runId: 'run1',
-                hypothesisId: 'B'
-            })
-        }).catch(() => {});
+                });
         // #endregion
         
         if (!response.ok) {
             // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/effbcd9e-3a4a-4ad1-8bda-7a6174db52ca', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    location: 'predict.js:505',
-                    message: 'API returned error',
-                    data: {
+            logToAgent('predict.js:505', 'API returned error', {
                         error: result.error || 'Unknown error',
                         status: response.status,
                         statusText: response.statusText,
@@ -551,13 +457,7 @@ async function handleFormSubmit(e) {
                         receivedColumns: result.received_columns || [],
                         expectedColumns: result.expected_columns || [],
                         details: result.details || ''
-                    },
-                    timestamp: Date.now(),
-                    sessionId: 'debug-session',
-                    runId: 'run1',
-                    hypothesisId: 'B'
-                })
-            }).catch(() => {});
+                    });
             // #endregion
             
             // Build detailed error message
@@ -585,23 +485,11 @@ async function handleFormSubmit(e) {
         
     } catch (error) {
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/effbcd9e-3a4a-4ad1-8bda-7a6174db52ca', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                location: 'predict.js:530',
-                message: 'Exception caught',
-                data: {
+        logToAgent('predict.js:530', 'Exception caught', {
                     error: error.message,
                     errorType: error.constructor.name,
                     stack: error.stack
-                },
-                timestamp: Date.now(),
-                sessionId: 'debug-session',
-                runId: 'run1',
-                hypothesisId: 'B'
-            })
-        }).catch(() => {});
+                });
         // #endregion
         console.error('Prediction error:', error);
         let errorMsg = error.message || 'Failed to get prediction. Please try again.';
