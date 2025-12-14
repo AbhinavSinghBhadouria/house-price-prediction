@@ -97,7 +97,7 @@ def load_model():
 @app.route('/')
 def index():
     """Serve the main frontend page"""
-    return render_template('landing.html')
+    return render_template('index.html')
 
 
 @app.route('/health', methods=['GET'])
