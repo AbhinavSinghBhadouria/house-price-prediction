@@ -168,13 +168,13 @@ class HousePricePreprocessor:
                 known_classes = set(self.label_encoders[col].classes_)
                 X_processed[col] = X_processed[col].astype(str).fillna('Unknown')
                 
-                # Replace unseen categories with the first known class (or most common)
+                # Replace unseen categories with a consistent default
                 # First, try to use 'Unknown' if it was in training
                 if 'Unknown' in known_classes:
                     default_value = 'Unknown'
                 else:
-                    # Use the first known class as default
-                    default_value = list(known_classes)[0] if known_classes else 'Unknown'
+                    # Use the alphabetically first known class as default for consistency
+                    default_value = sorted(known_classes)[0] if known_classes else 'Unknown'
                 
                 X_processed[col] = X_processed[col].apply(
                     lambda x: x if x in known_classes else default_value
