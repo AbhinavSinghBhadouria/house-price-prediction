@@ -97,11 +97,7 @@ def load_model():
 @app.route('/')
 def index():
     """Serve the main frontend page"""
-    try:
-        return render_template('index.html')
-    except Exception:
-        # Fallback: serve predict.html directly if index.html not found
-        return render_template('predict.html')
+    return render_template('landing.html')
 
 
 @app.route('/health', methods=['GET'])
