@@ -129,7 +129,10 @@ curl -X POST http://localhost:5001/predict \
 - `latitude`: Same as LATITUDE
 - `CITY_NAME`: String (e.g., "Bangalore", "Mumbai")
 
-## ⚠️ Common Issues
+## ⚠️ Important Notes
+
+- **Location Restriction**: All coordinates must be within India (latitude: 6°-37°, longitude: 68°-98°). The model is trained exclusively on Indian real estate data.
+- **City Coverage**: The model performs best with major Indian cities like Bangalore, Mumbai, Delhi, Chennai, Kolkata, etc.
 
 ### Issue: "No JSON data provided"
 **Solution**: Make sure you're sending JSON data with Content-Type header
