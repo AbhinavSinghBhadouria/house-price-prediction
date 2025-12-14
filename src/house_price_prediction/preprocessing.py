@@ -164,21 +164,25 @@ class HousePricePreprocessor:
         # Encode categorical variables
         for col in categorical_cols:
             if col in self.label_encoders:
-                # Handle unseen categories
+                # Handle unseen categories with better logic
                 known_classes = set(self.label_encoders[col].classes_)
                 X_processed[col] = X_processed[col].astype(str).fillna('Unknown')
                 
-                # Replace unseen categories with a consistent default
-                # First, try to use 'Unknown' if it was in training
-                if 'Unknown' in known_classes:
-                    default_value = 'Unknown'
+                # For CITY_NAME, try to find similar cities or use regional defaults
+                if col == 'CITY_NAME':
+                    X_processed[col] = X_processed[col].apply(
+                        lambda x: self._handle_unknown_city(x, known_classes)
+                    )
                 else:
-                    # Use the alphabetically first known class as default for consistency
-                    default_value = sorted(known_classes)[0] if known_classes else 'Unknown'
-                
-                X_processed[col] = X_processed[col].apply(
-                    lambda x: x if x in known_classes else default_value
-                )
+                    # For other categorical columns, use default
+                    if 'Unknown' in known_classes:
+                        default_value = 'Unknown'
+                    else:
+                        default_value = sorted(known_classes)[0] if known_classes else 'Unknown'
+                    
+                    X_processed[col] = X_processed[col].apply(
+                        lambda x: x if x in known_classes else default_value
+                    )
                 
                 try:
                     X_processed[col] = self.label_encoders[col].transform(X_processed[col])
@@ -203,6 +207,38 @@ class HousePricePreprocessor:
                                                      index=X_processed.index)
         
         return X_processed
+    
+    def _handle_unknown_city(self, city, known_classes):
+        """Handle unknown cities with smarter logic"""
+        if city in known_classes:
+            return city
+        
+        # Use a hash of the city name to get different defaults
+        # This ensures different unknown cities get different mappings
+        city_hash = hash(city.lower()) % 10
+        
+        # Define fallback cities from different regions
+        fallback_cities = [
+            'Mumbai',      # West
+            'Bangalore',   # South  
+            'Kolkata',     # East
+            'Ghaziabad',   # North
+            'Chennai',     # South
+            'Pune',        # West
+            'Jaipur',      # North
+            'Ahmedabad',   # West
+            'Hyderabad',   # South
+            'Lucknow'      # North
+        ]
+        
+        # Try fallback cities in order based on hash
+        for i in range(len(fallback_cities)):
+            candidate = fallback_cities[(city_hash + i) % len(fallback_cities)]
+            if candidate in known_classes:
+                return candidate
+        
+        # Final fallback to alphabetical default
+        return sorted(known_classes)[0] if known_classes else 'Unknown'
     
     def save(self, filepath):
         """Save preprocessor to disk"""
