@@ -1,1 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>House Price Prediction - Predict Property Prices in India</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/predict.css') }}">
+    <!-- Leaflet CSS for OpenStreetMap -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Google Maps API (optional) -->
+    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&libraries=places&callback=initMap" async defer></script>
+    <script>
+        window.google_maps_key = 'YOUR_API_KEY'; // Set your Google Maps API key here
+    </script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏠 House Price Prediction</h1>
+            <p>Predict property prices across India with AI-powered accuracy</p>
+        </header>
 
+        <main>
+            <form id="predictionForm" class="prediction-form">
+                <div class="form-section">
+                    <h2>Property Details</h2>
+                    
+                    <div class="form-group">
+                        <label for="BHK_OR_RK">Property Type <span class="required">*</span></label>
+                        <select id="BHK_OR_RK" name="BHK_OR_RK" required>
+                            <option value="">Select Type</option>
+                            <option value="BHK">BHK</option>
+                            <option value="RK">RK</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="BHK_NO">Bedrooms (BHK No.) <span class="required">*</span></label>
+                        <input type="number" id="BHK_NO" name="BHK_NO." min="1" max="10" required placeholder="e.g., 3">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="SQUARE_FT">Area (Square Feet) <span class="required">*</span></label>
+                        <input type="number" id="SQUARE_FT" name="SQUARE_FT" min="100" step="50" required placeholder="e.g., 1500">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="POSTED_BY">Posted By <span class="required">*</span></label>
+                        <select id="POSTED_BY" name="POSTED_BY" required>
+                            <option value="">Select</option>
+                            <option value="Owner">Owner</option>
+                            <option value="Dealer">Dealer</option>
+                            <option value="Builder">Builder</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h2>Location</h2>
+                    
+                    <div class="form-group">
+                        <label for="address">Address <span class="required">*</span></label>
+                        <input type="text" id="address" name="ADDRESS" required placeholder="Enter address or search on map">
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="latitude">Latitude <span class="required">*</span></label>
+                            <input type="number" id="latitude" name="LATITUDE" step="0.000001" required placeholder="e.g., 19.0760">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="longitude">Longitude <span class="required">*</span></label>
+                            <input type="number" id="longitude" name="LONGITUDE" step="0.000001" required placeholder="e.g., 72.8777">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Map - Click to set location</label>
+                        <div id="map-container">
+                            <div id="map"></div>
+                        </div>
+                        <p class="help-text">Click on the map or drag the marker to set coordinates</p>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h2>Additional Details</h2>
+                    
+                    <div class="checkbox-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="UNDER_CONSTRUCTION" value="1">
+                            <span>Under Construction</span>
+                        </label>
+
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="RERA" value="1">
+                            <span>RERA Approved</span>
+                        </label>
+
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="READY_TO_MOVE" value="1">
+                            <span>Ready to Move</span>
+                        </label>
+
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="RESALE" value="1">
+                            <span>Resale</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" id="predictBtn" class="predict-button">
+                        <span class="btn-content">
+                            <span id="btnText">Predict Price</span>
+                            <span id="btnLoader" class="loader" style="display: none;"></span>
+                        </span>
+                    </button>
+                </div>
+            </form>
+
+            <!-- Results Card -->
+            <div id="resultsCard" class="results-card" style="display: none;">
+                <h2>Predicted Price</h2>
+                <div class="price-display">
+                    <span id="predictedPrice" class="price">₹0</span>
+                </div>
+                <div class="inference-info">
+                    <p>Inference Time: <span id="inferenceTime">0</span> ms</p>
+                </div>
+            </div>
+
+            <!-- Error Card -->
+            <div id="errorCard" class="error-card" style="display: none;">
+                <h3>⚠️ Error</h3>
+                <p id="errorMessage"></p>
+            </div>
+        </main>
+
+        <footer>
+            <p>Powered by Machine Learning | Trained on Indian Real Estate Data</p>
+        </footer>
+    </div>
+
+    <!-- Leaflet JS for OpenStreetMap -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Prediction Page JavaScript -->
+    <script src="{{ url_for('static', filename='js/predict.js') }}"></script>
+</body>
+</html>
