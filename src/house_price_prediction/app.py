@@ -12,6 +12,23 @@ import time
 import json
 from .preprocessing import HousePricePreprocessor
 
+LOG_PATH = Path("debug.log")
+
+def log_entry(session_id, run_id, hypothesis_id, location, message, data):
+    """Write a log entry in NDJSON format"""
+    entry = {
+        "sessionId": session_id,
+        "runId": run_id,
+        "hypothesisId": hypothesis_id,
+        "location": location,
+        "message": message,
+        "data": data,
+        "timestamp": int(__import__('time').time() * 1000)
+    }
+    with open(LOG_PATH, 'a') as f:
+        f.write(json.dumps(entry) + '\n')
+
+
 app = Flask(__name__, 
             template_folder='templates',
             static_folder='static')
@@ -26,6 +43,11 @@ def load_model():
     """Load model and preprocessor"""
     global model, preprocessor, model_loaded
     
+    # #region agent log
+    log_entry("api", "load_model", "LOAD", "app.py:38",
+             "Loading model and preprocessor", {})
+    # #endregion
+    
     try:
         # Get project root (2 levels up from src/house_price_prediction/)
         project_root = Path(__file__).parent.parent.parent
@@ -34,30 +56,37 @@ def load_model():
         preprocessor_path = model_dir / "preprocessor.joblib"
         
         if not model_path.exists() or not preprocessor_path.exists():
+            # #region agent log
+            log_entry("api", "load_model", "LOAD", "app.py:47",
+                     "Model files not found", {
+                         "model_exists": model_path.exists(),
+                         "preprocessor_exists": preprocessor_path.exists()
+                     })
+            # #endregion
             return False
         
         model = joblib.load(model_path)
-        # Load preprocessor - it's saved as a dict
-        preprocessor_data = joblib.load(preprocessor_path)
-        if isinstance(preprocessor_data, dict):
-            # Reconstruct preprocessor from dict
-            preprocessor = HousePricePreprocessor()
-            preprocessor.scaler = preprocessor_data.get('scaler', preprocessor.scaler)
-            preprocessor.label_encoders = preprocessor_data.get('label_encoders', {})
-            preprocessor.imputer = preprocessor_data.get('imputer', preprocessor.imputer)
-            preprocessor.feature_names = preprocessor_data.get('feature_names', None)
-            preprocessor.is_fitted = preprocessor_data.get('is_fitted', False)
-        elif hasattr(preprocessor_data, 'is_fitted'):
-            # It's already a preprocessor object
-            preprocessor = preprocessor_data
-        else:
-            # Try using the load method
-            preprocessor = HousePricePreprocessor()
-            preprocessor.load(preprocessor_path)
+        preprocessor = HousePricePreprocessor()
+        preprocessor.load(preprocessor_path)
         model_loaded = True
+        
+        # #region agent log
+        log_entry("api", "load_model", "LOAD", "app.py:58",
+                 "Model loaded successfully", {
+                     "model_type": type(model).__name__,
+                     "preprocessor_fitted": preprocessor.is_fitted
+                 })
+        # #endregion
         
         return True
     except Exception as e:
+        # #region agent log
+        log_entry("api", "load_model", "LOAD", "app.py:66",
+                 "Model load error", {
+                     "error": str(e),
+                     "error_type": type(e).__name__
+                 })
+        # #endregion
         return False
 
 
@@ -67,17 +96,8 @@ def load_model():
 
 @app.route('/')
 def index():
-    """Serve the landing page"""
-    return render_template('landing.html')
-
-
-@app.route('/predict')
-def predict_page():
-    """Serve the prediction page"""
-    # Get Google Maps API key from environment (optional - OpenStreetMap is used by default)
-    import os
-    google_maps_key = os.getenv('GOOGLE_MAPS_API_KEY', 'YOUR_API_KEY')
-    return render_template('predict.html', google_maps_key=google_maps_key)
+    """Serve the main frontend page"""
+    return render_template('index.html')
 
 
 @app.route('/health', methods=['GET'])
@@ -92,10 +112,18 @@ def health_check():
 @app.route('/predict', methods=['POST'])
 def predict():
     """Predict house price from JSON input"""
+    # #region agent log
+    log_entry("api", "predict", "PRED", "app.py:90",
+             "Prediction request received", {})
+    # #endregion
     
     start_time = time.time()
     
     if not model_loaded:
+        # #region agent log
+        log_entry("api", "predict", "PRED", "app.py:96",
+                 "Model not loaded, attempting load", {})
+        # #endregion
         if not load_model():
             return jsonify({
                 "error": "Model not loaded. Please train the model first."
@@ -108,13 +136,12 @@ def predict():
         if not data:
             return jsonify({"error": "No JSON data provided"}), 400
         
-        # Validate coordinates are within India
-        lat = data.get('LATITUDE', 0)
-        lng = data.get('LONGITUDE', 0)
-        if not (6 <= lat <= 37 and 68 <= lng <= 98):
-            return jsonify({
-                "error": "Coordinates must be within India (latitude 6-37, longitude 68-98). The model is trained on Indian real estate data."
-            }), 400
+        # #region agent log
+        log_entry("api", "predict", "PRED", "app.py:111",
+                 "Processing input data", {
+                     "input_keys": list(data.keys()) if isinstance(data, dict) else "not_dict"
+                 })
+        # #endregion
         
         # Convert to DataFrame
         if isinstance(data, dict):
@@ -126,62 +153,42 @@ def predict():
         else:
             return jsonify({"error": "Invalid input format"}), 400
         
-        # Extract city from ADDRESS if CITY_NAME is not properly set
-        if 'ADDRESS' in df.columns and 'CITY_NAME' in df.columns:
-            # Only extract if CITY_NAME is mostly empty or "Unknown"
-            if df['CITY_NAME'].isin(['Unknown', '', None]).sum() > len(df) * 0.8:
-                df['CITY_NAME'] = df['ADDRESS'].apply(lambda addr: 
-                    addr.split(',')[-1].strip().title() if isinstance(addr, str) and ',' in addr 
-                    else 'Unknown')
-        
-        # Check if CITY_NAME is in known cities
-        if 'CITY_NAME' in df.columns and hasattr(preprocessor, 'label_encoders') and 'CITY_NAME' in preprocessor.label_encoders:
-            known_cities = set(preprocessor.label_encoders['CITY_NAME'].classes_)
-            for idx, row in df.iterrows():
-                city_name = str(row['CITY_NAME']).strip()
-                if city_name and city_name not in known_cities:
-                    return jsonify({
-                        "error": f"Sorry, dataset does not contain data for the city '{city_name}'. The model is trained on {len(known_cities)} Indian cities. Please try a different city or check the city name spelling."
-                    }), 400
-        
-        # Reorder DataFrame columns to match preprocessor's expected order
-        # This is critical because scikit-learn transformers (imputer, scaler) expect columns in the same order as during fit
-        if hasattr(preprocessor, 'feature_names') and preprocessor.feature_names:
-            # Ensure all expected columns exist (add missing ones with default values)
-            for col in preprocessor.feature_names:
-                if col not in df.columns:
-                    df[col] = 0 if col in ['UNDER_CONSTRUCTION', 'RERA', 'READY_TO_MOVE', 'RESALE'] else ''
-            # Reorder columns to match expected order
-            df = df[preprocessor.feature_names]
+        # #region agent log
+        log_entry("api", "predict", "PRED", "app.py:125",
+                 "DataFrame created", {
+                     "shape": list(df.shape),
+                     "columns": list(df.columns)
+                 })
+        # #endregion
         
         # Preprocess
         preprocess_start = time.time()
-        try:
-            X_processed = preprocessor.transform(df)
-        except Exception as e:
-            import traceback
-            expected_cols = list(preprocessor.feature_names) if hasattr(preprocessor, 'feature_names') and preprocessor.feature_names else []
-            return jsonify({
-                "error": f"Preprocessing failed: {str(e)}",
-                "received_columns": list(df.columns),
-                "expected_columns": expected_cols,
-                "hint": "Make sure all required fields are provided. See SAMPLE_TEST_DATA.md for example data.",
-                "details": str(e)
-            }), 400
+        X_processed = preprocessor.transform(df)
         preprocess_time = time.time() - preprocess_start
+        
+        # #region agent log
+        log_entry("api", "predict", "PRED", "app.py:135",
+                 "Preprocessing complete", {
+                     "preprocess_time_ms": preprocess_time * 1000,
+                     "processed_shape": list(X_processed.shape)
+                 })
+        # #endregion
         
         # Predict
         predict_start = time.time()
-        try:
-            predictions = model.predict(X_processed)
-        except Exception as e:
-            return jsonify({
-                "error": f"Prediction failed: {str(e)}",
-                "hint": "Check if model is properly loaded and data format is correct."
-            }), 500
+        predictions = model.predict(X_processed)
         predict_time = time.time() - predict_start
         
         total_time = time.time() - start_time
+        
+        # #region agent log
+        log_entry("api", "predict", "PRED", "app.py:147",
+                 "Prediction complete", {
+                     "predict_time_ms": predict_time * 1000,
+                     "total_time_ms": total_time * 1000,
+                     "num_predictions": len(predictions)
+                 })
+        # #endregion
         
         # Format response
         if len(predictions) == 1:
@@ -203,6 +210,13 @@ def predict():
         return jsonify(result), 200
         
     except Exception as e:
+        # #region agent log
+        log_entry("api", "predict", "PRED", "app.py:172",
+                 "Prediction error", {
+                     "error": str(e),
+                     "error_type": type(e).__name__
+                 })
+        # #endregion
         return jsonify({
             "error": str(e),
             "error_type": type(e).__name__
@@ -240,18 +254,14 @@ if __name__ == '__main__':
     # Load model at startup
     load_model()
     
-    # Use port 5001 (5000 often used by AirPlay on macOS)
-    port = 5001
-    
     print("\n" + "="*60)
     print("🏠 HOUSE PRICE PREDICTION SYSTEM")
     print("="*60)
-    print(f"\n✅ Landing Page: http://localhost:{port}")
-    print(f"✅ Prediction Page: http://localhost:{port}/predict")
-    print(f"✅ API: http://localhost:{port}/predict")
-    print(f"✅ Health: http://localhost:{port}/health")
+    print("\n✅ Frontend: http://localhost:5000")
+    print("✅ API: http://localhost:5000/predict")
+    print("✅ Health: http://localhost:5000/health")
     print("\n" + "="*60 + "\n")
     
     # Run Flask app
-    app.run(host='0.0.0.0', port=port, debug=False)
+    app.run(host='0.0.0.0', port=5000, debug=False)
 

@@ -7,6 +7,25 @@ import numpy as np
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.impute import SimpleImputer
 import joblib
+import json
+from pathlib import Path
+
+LOG_PATH = Path("debug.log")
+
+def log_entry(session_id, run_id, hypothesis_id, location, message, data):
+    """Write a log entry in NDJSON format"""
+    entry = {
+        "sessionId": session_id,
+        "runId": run_id,
+        "hypothesisId": hypothesis_id,
+        "location": location,
+        "message": message,
+        "data": data,
+        "timestamp": int(__import__('time').time() * 1000)
+    }
+    with open(LOG_PATH, 'a') as f:
+        f.write(json.dumps(entry) + '\n')
+
 
 class HousePricePreprocessor:
     """Advanced feature engineering for house price prediction"""
@@ -17,33 +36,7 @@ class HousePricePreprocessor:
         self.imputer = SimpleImputer(strategy='median')
         self.feature_names = None
         self.is_fitted = False
-    
-    def extract_city_from_address(self, address):
-        """Extract city name from address string"""
-        if not isinstance(address, str) or not address.strip():
-            return 'Unknown'
-        
-        # Clean the address
-        address = address.strip()
-        
-        # Split by comma and take the last part (usually the city)
-        parts = [part.strip() for part in address.split(',')]
-        
-        # If multiple parts, the last one is likely the city
-        if len(parts) > 1:
-            city = parts[-1]
-        else:
-            # If no comma, try to extract from common patterns
-            city = address
-        
-        # Clean up common suffixes and prefixes
-        city = city.replace('Road', '').replace('Nagar', '').replace('Colony', '').strip()
-        
-        # Capitalize properly
-        if city:
-            city = city.title()
-        
-        return city if city else 'Unknown'
+        self.categorical_features = set()  # Track which features are categorical (should not be scaled)
         
     def create_advanced_features(self, df):
         """
@@ -51,16 +44,9 @@ class HousePricePreprocessor:
         - Rooms per household
         - Population ratios
         - Income bands
-        - Extract city names from addresses
         """
         
         df = df.copy()
-        
-        # Extract city names from ADDRESS if CITY_NAME is not properly set
-        if 'ADDRESS' in df.columns and 'CITY_NAME' in df.columns:
-            # Only extract if CITY_NAME is mostly "Unknown" or empty
-            if df['CITY_NAME'].isin(['Unknown', '']).sum() > len(df) * 0.8:
-                df['CITY_NAME'] = df['ADDRESS'].apply(self.extract_city_from_address)
         
         # Rooms per household
         if 'total_rooms' in df.columns and 'households' in df.columns:
@@ -127,12 +113,16 @@ class HousePricePreprocessor:
             X_processed[col] = self.label_encoders[col].fit_transform(
                 X_processed[col].astype(str).fillna('Unknown')
             )
+            # Track that this column is categorical (should not be scaled)
+            self.categorical_features.add(col)
         
-        # Scale numeric features
-        if len(numeric_cols) > 0:
-            X_scaled = self.scaler.fit_transform(X_processed[numeric_cols])
-            X_processed[numeric_cols] = pd.DataFrame(X_scaled,
-                                                     columns=numeric_cols,
+        # Scale numeric features (EXCLUDE encoded categorical features)
+        # Categorical features that have been label-encoded should NOT be scaled
+        numeric_cols_to_scale = [col for col in numeric_cols if col not in self.categorical_features]
+        if len(numeric_cols_to_scale) > 0:
+            X_scaled = self.scaler.fit_transform(X_processed[numeric_cols_to_scale])
+            X_processed[numeric_cols_to_scale] = pd.DataFrame(X_scaled,
+                                                     columns=numeric_cols_to_scale,
                                                      index=X_processed.index)
         
         self.feature_names = list(X_processed.columns)
@@ -147,6 +137,17 @@ class HousePricePreprocessor:
         
         # Create advanced features
         X_processed = self.create_advanced_features(X)
+        
+        # Special handling for CITY_NAME if it exists in input but not in training
+        # This helps diagnose issues where city information wasn't used in training
+        if 'CITY_NAME' in X_processed.columns and 'CITY_NAME' not in self.feature_names:
+            # Log a warning that CITY_NAME is being ignored
+            import warnings
+            warnings.warn(
+                "CITY_NAME is in input data but was not in training features. "
+                "The model cannot use city information. Consider retraining with CITY_NAME as a feature.",
+                UserWarning
+            )
         
         # Handle missing values
         numeric_cols = [col for col in X_processed.select_dtypes(include=[np.number]).columns 
@@ -164,32 +165,27 @@ class HousePricePreprocessor:
         # Encode categorical variables
         for col in categorical_cols:
             if col in self.label_encoders:
-                # Handle unseen categories with better logic
+                # Handle unseen categories
                 known_classes = set(self.label_encoders[col].classes_)
                 X_processed[col] = X_processed[col].astype(str).fillna('Unknown')
                 
-                # For CITY_NAME, try to find similar cities or use regional defaults
-                if col == 'CITY_NAME':
-                    X_processed[col] = X_processed[col].apply(
-                        lambda x: self._handle_unknown_city(x, known_classes)
-                    )
-                else:
-                    # For other categorical columns, use default
-                    if 'Unknown' in known_classes:
-                        default_value = 'Unknown'
-                    else:
-                        default_value = sorted(known_classes)[0] if known_classes else 'Unknown'
-                    
-                    X_processed[col] = X_processed[col].apply(
-                        lambda x: x if x in known_classes else default_value
-                    )
+                # Create mapping for known classes
+                class_to_int = {cls: idx for idx, cls in enumerate(self.label_encoders[col].classes_)}
+                max_known_int = max(class_to_int.values()) if class_to_int else -1
                 
-                try:
-                    X_processed[col] = self.label_encoders[col].transform(X_processed[col])
-                except ValueError:
-                    # If still fails, map manually
-                    class_to_int = {cls: idx for idx, cls in enumerate(self.label_encoders[col].classes_)}
-                    X_processed[col] = X_processed[col].map(lambda x: class_to_int.get(x, class_to_int.get(default_value, 0)))
+                # For unseen categories, use hash-based encoding to give each unique value
+                # a different encoding, ensuring different cities get different values
+                def encode_value(x):
+                    if x in known_classes:
+                        return class_to_int[x]
+                    else:
+                        # Use hash to create a unique encoding for unseen values
+                        # Add max_known_int + 1 to ensure it's distinct from known classes
+                        # Use modulo to keep it within reasonable range (0 to 2*max_known_int)
+                        hash_val = hash(str(x)) % (max_known_int + 1000)
+                        return max_known_int + 1 + abs(hash_val)
+                
+                X_processed[col] = X_processed[col].apply(encode_value)
         
         # Ensure all expected features exist
         for feat in self.feature_names:
@@ -199,46 +195,16 @@ class HousePricePreprocessor:
         # Reorder columns to match training
         X_processed = X_processed[self.feature_names]
         
-        # Scale numeric features
-        if len(numeric_cols) > 0:
-            X_scaled = self.scaler.transform(X_processed[numeric_cols])
-            X_processed[numeric_cols] = pd.DataFrame(X_scaled,
-                                                     columns=numeric_cols,
+        # Scale numeric features (EXCLUDE encoded categorical features)
+        # Categorical features that have been label-encoded should NOT be scaled
+        numeric_cols_to_scale = [col for col in numeric_cols if col not in self.categorical_features]
+        if len(numeric_cols_to_scale) > 0:
+            X_scaled = self.scaler.transform(X_processed[numeric_cols_to_scale])
+            X_processed[numeric_cols_to_scale] = pd.DataFrame(X_scaled,
+                                                     columns=numeric_cols_to_scale,
                                                      index=X_processed.index)
         
         return X_processed
-    
-    def _handle_unknown_city(self, city, known_classes):
-        """Handle unknown cities with smarter logic"""
-        if city in known_classes:
-            return city
-        
-        # Use a hash of the city name to get different defaults
-        # This ensures different unknown cities get different mappings
-        city_hash = hash(city.lower()) % 10
-        
-        # Define fallback cities from different regions
-        fallback_cities = [
-            'Mumbai',      # West
-            'Bangalore',   # South  
-            'Kolkata',     # East
-            'Ghaziabad',   # North
-            'Chennai',     # South
-            'Pune',        # West
-            'Jaipur',      # North
-            'Ahmedabad',   # West
-            'Hyderabad',   # South
-            'Lucknow'      # North
-        ]
-        
-        # Try fallback cities in order based on hash
-        for i in range(len(fallback_cities)):
-            candidate = fallback_cities[(city_hash + i) % len(fallback_cities)]
-            if candidate in known_classes:
-                return candidate
-        
-        # Final fallback to alphabetical default
-        return sorted(known_classes)[0] if known_classes else 'Unknown'
     
     def save(self, filepath):
         """Save preprocessor to disk"""
@@ -247,7 +213,8 @@ class HousePricePreprocessor:
             'label_encoders': self.label_encoders,
             'imputer': self.imputer,
             'feature_names': self.feature_names,
-            'is_fitted': self.is_fitted
+            'is_fitted': self.is_fitted,
+            'categorical_features': self.categorical_features
         }
         joblib.dump(preprocessor_data, filepath)
     
@@ -259,4 +226,10 @@ class HousePricePreprocessor:
         self.imputer = preprocessor_data['imputer']
         self.feature_names = preprocessor_data['feature_names']
         self.is_fitted = preprocessor_data['is_fitted']
+        # Handle backward compatibility: if categorical_features doesn't exist, infer from label_encoders
+        if 'categorical_features' in preprocessor_data:
+            self.categorical_features = preprocessor_data['categorical_features']
+        else:
+            # Infer categorical features from label_encoders (backward compatibility)
+            self.categorical_features = set(preprocessor_data.get('label_encoders', {}).keys())
 
