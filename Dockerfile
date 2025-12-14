@@ -28,13 +28,13 @@ COPY src/house_price_prediction/static/ src/house_price_prediction/static/
 # Create directories for data and models
 RUN mkdir -p data/raw data/processed data/external models
 
-# Expose port (use PORT env var if available, default to 5000)
+# Expose port
 EXPOSE 5000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import requests; import os; port = os.environ.get('PORT', '5000'); requests.get(f'http://localhost:{port}/health')"
+    CMD python -c "import requests; requests.get('http://localhost:5000/health')"
 
-# Run with Gunicorn for production (use PORT env var for cloud platforms)
-CMD gunicorn --bind 0.0.0.0:${PORT:-5000} --workers 1 --timeout 120 src.house_price_prediction.app:app
+# Run with Gunicorn for production
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "4", "--timeout", "120", "src.house_price_prediction.app:app"]
 

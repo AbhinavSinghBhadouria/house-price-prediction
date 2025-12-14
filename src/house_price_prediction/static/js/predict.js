@@ -35,12 +35,7 @@ function initOpenStreetMap() {
         center: defaultCenter,
         zoom: 5,
         zoomControl: true,
-        attributionControl: true,
-        maxBounds: [
-            [6.0, 68.0],  // Southwest corner of India
-            [37.0, 98.0]  // Northeast corner of India
-        ],
-        maxBoundsViscosity: 1.0  // Prevents dragging outside bounds
+        attributionControl: true
     });
     
     // Add dark theme tile layer
@@ -115,16 +110,7 @@ function initGoogleMap() {
         ],
         mapTypeControl: false,
         streetViewControl: false,
-        fullscreenControl: true,
-        restriction: {
-            latLngBounds: {
-                north: 37.0,  // Northeast latitude
-                south: 6.0,   // Southwest latitude
-                east: 98.0,   // Northeast longitude
-                west: 68.0    // Southwest longitude
-            },
-            strictBounds: true
-        }
+        fullscreenControl: true
     });
     
     // Initialize geocoder
@@ -197,7 +183,7 @@ function setupNominatimSearch() {
 async function searchAddress(query) {
     try {
         const response = await fetch(
-            `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&countrycodes=in&bounded=1&viewbox=68.0,37.0,98.0,6.0`
+            `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&countrycodes=in`
         );
         const data = await response.json();
         
@@ -214,30 +200,6 @@ async function searchAddress(query) {
 
 // Universal function to place marker (works with both map types)
 function placeMarkerAndGetCoordinates(location) {
-    // Validate coordinates are within India bounds
-    let lat, lng;
-    if (useGoogleMaps) {
-        lat = location.lat();
-        lng = location.lng();
-    } else {
-        [lat, lng] = Array.isArray(location) ? location : [location.lat, location.lng];
-    }
-    
-    // India bounds: lat 6-37, lng 68-98
-    if (lat < 6 || lat > 37 || lng < 68 || lng > 98) {
-        // Use the error card to show message
-        const errorCard = document.getElementById('errorCard');
-        const errorMessage = document.getElementById('errorMessage');
-        if (errorCard && errorMessage) {
-            errorMessage.textContent = 'Please select a location within India. The model is trained on Indian real estate data.';
-            errorCard.style.display = 'block';
-            hideResults();
-        } else {
-            alert('Please select a location within India. The model is trained on Indian real estate data.');
-        }
-        return;
-    }
-    
     if (useGoogleMaps) {
         // Google Maps
         marker.setPosition(location);
@@ -246,6 +208,7 @@ function placeMarkerAndGetCoordinates(location) {
         updateCoordinates(location);
     } else {
         // OpenStreetMap
+        const [lat, lng] = Array.isArray(location) ? location : [location.lat, location.lng];
         marker.setLatLng([lat, lng]);
         map.setView([lat, lng], 15);
         updateCoordinates([lat, lng]);
@@ -297,6 +260,21 @@ async function reverseGeocodeNominatim(lat, lng) {
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/effbcd9e-3a4a-4ad1-8bda-7a6174db52ca', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            location: 'predict.js:270',
+            message: 'DOMContentLoaded - predict page',
+            data: {},
+            timestamp: Date.now(),
+            sessionId: 'debug-session',
+            runId: 'run1',
+            hypothesisId: 'C'
+        })
+    }).catch(() => {});
+    // #endregion
     
     // Add smooth page transition
     document.body.style.opacity = '0';
@@ -334,10 +312,40 @@ document.addEventListener('DOMContentLoaded', () => {
     // Setup form submission handler
     const form = document.getElementById('predictionForm');
     if (form) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/effbcd9e-3a4a-4ad1-8bda-7a6174db52ca', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                location: 'predict.js:310',
+                message: 'Form element found, setting up submit handler',
+                data: {formId: form.id},
+                timestamp: Date.now(),
+                sessionId: 'debug-session',
+                runId: 'run1',
+                hypothesisId: 'C'
+            })
+        }).catch(() => {});
+        // #endregion
         
         // Attach form submission handler
         form.addEventListener('submit', handleFormSubmit);
     } else {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/effbcd9e-3a4a-4ad1-8bda-7a6174db52ca', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                location: 'predict.js:320',
+                message: 'Form element NOT found',
+                data: {},
+                timestamp: Date.now(),
+                sessionId: 'debug-session',
+                runId: 'run1',
+                hypothesisId: 'C'
+            })
+        }).catch(() => {});
+        // #endregion
         console.error('Prediction form not found!');
     }
 });
@@ -346,10 +354,26 @@ document.addEventListener('DOMContentLoaded', () => {
 async function handleFormSubmit(e) {
     e.preventDefault();
     
-    const formData = new FormData(e.target);
-    let data = {};
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/effbcd9e-3a4a-4ad1-8bda-7a6174db52ca', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            location: 'predict.js:375',
+            message: 'Form submission started',
+            data: {timestamp: Date.now()},
+            timestamp: Date.now(),
+            sessionId: 'debug-session',
+            runId: 'run1',
+            hypothesisId: 'A'
+        })
+    }).catch(() => {});
+    // #endregion
     
-    // Initialize all required fields with defaults (especially checkboxes)
+    const formData = new FormData(e.target);
+    const data = {};
+    
+    // Initialize all required fields with defaults
     data['UNDER_CONSTRUCTION'] = 0;
     data['RERA'] = 0;
     data['READY_TO_MOVE'] = 0;
@@ -376,15 +400,52 @@ async function handleFormSubmit(e) {
     if (data['LONGITUDE']) data['LONGITUDE'] = parseFloat(data['LONGITUDE']) || 0;
     if (data['LATITUDE']) data['LATITUDE'] = parseFloat(data['LATITUDE']) || 0;
     
-    // CRITICAL: Ensure all required checkbox fields are present (even if 0)
-    // Unchecked checkboxes don't appear in FormData, so we must explicitly include them
-    if (!('UNDER_CONSTRUCTION' in data)) data['UNDER_CONSTRUCTION'] = 0;
-    if (!('RERA' in data)) data['RERA'] = 0;
-    if (!('READY_TO_MOVE' in data)) data['READY_TO_MOVE'] = 0;
-    if (!('RESALE' in data)) data['RESALE'] = 0;
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/effbcd9e-3a4a-4ad1-8bda-7a6174db52ca', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            location: 'predict.js:390',
+            message: 'Form data converted',
+            data: {
+                keys: Object.keys(data),
+                values: data,
+                hasRequired: !!(data['BHK_OR_RK'] && data['BHK_NO.'] && data['SQUARE_FT'] && data['POSTED_BY'] && data['LONGITUDE'] && data['LATITUDE'])
+            },
+            timestamp: Date.now(),
+            sessionId: 'debug-session',
+            runId: 'run1',
+            hypothesisId: 'A'
+        })
+    }).catch(() => {});
+    // #endregion
     
     // Validate required fields
     if (!data['BHK_OR_RK'] || !data['BHK_NO.'] || !data['SQUARE_FT'] || !data['POSTED_BY'] || !data['LONGITUDE'] || !data['LATITUDE']) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/effbcd9e-3a4a-4ad1-8bda-7a6174db52ca', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                location: 'predict.js:410',
+                message: 'Validation failed - missing required fields',
+                data: {
+                    missing: {
+                        BHK_OR_RK: !data['BHK_OR_RK'],
+                        BHK_NO: !data['BHK_NO.'],
+                        SQUARE_FT: !data['SQUARE_FT'],
+                        POSTED_BY: !data['POSTED_BY'],
+                        LONGITUDE: !data['LONGITUDE'],
+                        LATITUDE: !data['LATITUDE']
+                    }
+                },
+                timestamp: Date.now(),
+                sessionId: 'debug-session',
+                runId: 'run1',
+                hypothesisId: 'A'
+            })
+        }).catch(() => {});
+        // #endregion
         showError('Please fill in all required fields (marked with *)');
         return;
     }
@@ -396,35 +457,30 @@ async function handleFormSubmit(e) {
     if (!data['latitude']) data['latitude'] = data['LATITUDE'];
     if (!data['CITY_NAME']) data['CITY_NAME'] = data['ADDRESS'] || 'Unknown';
     
-    // CRITICAL: Ensure all required checkbox fields are present with numeric values
-    // These must be included even if checkboxes are unchecked
-    data['UNDER_CONSTRUCTION'] = data['UNDER_CONSTRUCTION'] !== undefined ? parseInt(data['UNDER_CONSTRUCTION']) || 0 : 0;
-    data['RERA'] = data['RERA'] !== undefined ? parseInt(data['RERA']) || 0 : 0;
-    data['READY_TO_MOVE'] = data['READY_TO_MOVE'] !== undefined ? parseInt(data['READY_TO_MOVE']) || 0 : 0;
-    data['RESALE'] = data['RESALE'] !== undefined ? parseInt(data['RESALE']) || 0 : 0;
-    
-    // Reorder data to match expected feature order from preprocessor
-    // Expected order from preprocessor.feature_names:
-    const expectedOrder = ['POSTED_BY', 'UNDER_CONSTRUCTION', 'RERA', 'BHK_NO.', 'BHK_OR_RK', 'SQUARE_FT', 'READY_TO_MOVE', 'RESALE', 'ADDRESS', 'LONGITUDE', 'LATITUDE', 'area', 'bedrooms', 'longitude', 'latitude', 'CITY_NAME'];
-    const orderedData = {};
-    // Add fields in expected order
-    for (const key of expectedOrder) {
-        if (key in data) {
-            orderedData[key] = data[key];
-        }
-    }
-    // Add any extra keys that might exist (shouldn't happen, but just in case)
-    for (const key in data) {
-        if (!(key in orderedData)) {
-            orderedData[key] = data[key];
-        }
-    }
-    data = orderedData;
-    
     // Show loading state
     setLoadingState(true);
     hideResults();
     hideError();
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/effbcd9e-3a4a-4ad1-8bda-7a6174db52ca', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            location: 'predict.js:440',
+            message: 'Sending API request',
+            data: {
+                url: `${API_BASE_URL}/predict`,
+                dataKeys: Object.keys(data),
+                dataSample: data
+            },
+            timestamp: Date.now(),
+            sessionId: 'debug-session',
+            runId: 'run1',
+            hypothesisId: 'B'
+        })
+    }).catch(() => {});
+    // #endregion
     
     try {
         const response = await fetch(`${API_BASE_URL}/predict`, {
@@ -435,9 +491,74 @@ async function handleFormSubmit(e) {
             body: JSON.stringify(data)
         });
         
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/effbcd9e-3a4a-4ad1-8bda-7a6174db52ca', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                location: 'predict.js:465',
+                message: 'API response received',
+                data: {
+                    status: response.status,
+                    statusText: response.statusText,
+                    ok: response.ok,
+                    headers: Object.fromEntries(response.headers.entries())
+                },
+                timestamp: Date.now(),
+                sessionId: 'debug-session',
+                runId: 'run1',
+                hypothesisId: 'B'
+            })
+        }).catch(() => {});
+        // #endregion
+        
         const result = await response.json();
         
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/effbcd9e-3a4a-4ad1-8bda-7a6174db52ca', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                location: 'predict.js:485',
+                message: 'Response parsed',
+                data: {
+                    hasPredictedPrice: 'predicted_price' in result,
+                    hasPredictions: 'predictions' in result,
+                    resultKeys: Object.keys(result),
+                    resultSample: result
+                },
+                timestamp: Date.now(),
+                sessionId: 'debug-session',
+                runId: 'run1',
+                hypothesisId: 'B'
+            })
+        }).catch(() => {});
+        // #endregion
+        
         if (!response.ok) {
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/effbcd9e-3a4a-4ad1-8bda-7a6174db52ca', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    location: 'predict.js:505',
+                    message: 'API returned error',
+                    data: {
+                        error: result.error || 'Unknown error',
+                        status: response.status,
+                        statusText: response.statusText,
+                        result: result,
+                        receivedColumns: result.received_columns || [],
+                        expectedColumns: result.expected_columns || [],
+                        details: result.details || ''
+                    },
+                    timestamp: Date.now(),
+                    sessionId: 'debug-session',
+                    runId: 'run1',
+                    hypothesisId: 'B'
+                })
+            }).catch(() => {});
+            // #endregion
             
             // Build detailed error message
             let errorMsg = result.error || 'Prediction failed';
@@ -463,6 +584,25 @@ async function handleFormSubmit(e) {
         }, 300);
         
     } catch (error) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/effbcd9e-3a4a-4ad1-8bda-7a6174db52ca', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                location: 'predict.js:530',
+                message: 'Exception caught',
+                data: {
+                    error: error.message,
+                    errorType: error.constructor.name,
+                    stack: error.stack
+                },
+                timestamp: Date.now(),
+                sessionId: 'debug-session',
+                runId: 'run1',
+                hypothesisId: 'B'
+            })
+        }).catch(() => {});
+        // #endregion
         console.error('Prediction error:', error);
         let errorMsg = error.message || 'Failed to get prediction. Please try again.';
         if (error.message && error.message.includes('fetch')) {
