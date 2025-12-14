@@ -100,9 +100,8 @@ def index():
     try:
         return render_template('index.html')
     except Exception:
-        # Fallback: redirect to predict page if index.html not found
-        from flask import redirect
-        return redirect('/predict')
+        # Fallback: serve predict.html directly if index.html not found
+        return render_template('predict.html')
 
 
 @app.route('/health', methods=['GET'])
@@ -113,6 +112,11 @@ def health_check():
         "model_loaded": model_loaded
     }), 200
 
+
+@app.route('/predict', methods=['GET'])
+def predict_page():
+    """Serve the prediction form page"""
+    return render_template('predict.html')
 
 @app.route('/predict', methods=['POST'])
 def predict():
