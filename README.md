@@ -1,6 +1,6 @@
-# House Price Prediction System
+# House Price Prediction API
 
-A machine learning system for predicting house prices using Random Forest regression with advanced feature engineering, deployed as a containerized Flask REST API with a modern web frontend.
+A production-ready machine learning system for predicting house prices in India using Random Forest regression, deployed as a containerized Flask REST API.
 
 ## 🚀 Quick Start
 
@@ -10,16 +10,10 @@ python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 
-# Download data
-python scripts/download_kaggle_data.py
-
-# Train model
-python scripts/train.py
-
-# Run API (with frontend)
+# Run API
 python -m src.house_price_prediction.app
 
-# Then open browser to: http://localhost:5000
+# API will be available at: http://localhost:5001
 ```
 
 ## 📁 Project Structure
@@ -29,48 +23,73 @@ house-price-prediction/
 ├── src/                    # Source code
 │   └── house_price_prediction/
 │       ├── __init__.py
-│       ├── app.py          # Flask API + Frontend
-│       ├── preprocessing.py # Feature engineering
-│       ├── templates/      # HTML templates
-│       │   └── index.html  # Frontend UI
-│       └── static/         # Static files
-│           ├── css/        # Stylesheets
-│           └── js/         # JavaScript
-├── data/                   # Data directory
-│   ├── raw/               # Raw datasets
-│   ├── processed/         # Processed datasets
-│   └── external/          # External data sources
-├── models/                 # Trained models
-├── scripts/                # Utility scripts
-│   ├── train.py
-│   ├── prepare_data.py
-│   └── download_kaggle_data.py
-├── tests/                  # Test files
-├── docs/                   # Documentation
-├── notebooks/              # Jupyter notebooks (optional)
-├── logs/                   # Log files
-├── requirements.txt
-├── Dockerfile
-└── docker-compose.yml
+│       ├── app.py          # Flask REST API
+│       └── preprocessing.py # Feature engineering
+├── models/                 # Trained ML models
+├── tests/                  # API tests
+├── requirements.txt        # Python dependencies
+├── Dockerfile             # Docker configuration
+├── docker-compose.yml     # Docker Compose setup
+├── Procfile              # Heroku/Render deployment
+├── render.yaml           # Render deployment config
+└── railway.json          # Railway deployment config
 ```
 
-## 📚 Documentation
+## 🔌 API Usage
 
-See `docs/` directory for detailed documentation:
-- `README.md` - Full project documentation
-- `QUICKSTART.md` - Quick start guide
-- `INDIAN_DATASET_GUIDE.md` - Dataset guide
+### Predict House Price
+
+```bash
+curl -X POST http://localhost:5001/predict \
+  -H "Content-Type: application/json" \
+  -d '{
+    "POSTED_BY": "Owner",
+    "UNDER_CONSTRUCTION": 0,
+    "RERA": 1,
+    "BHK_NO.": 3,
+    "BHK_OR_RK": "BHK",
+    "SQUARE_FT": 1500,
+    "READY_TO_MOVE": 1,
+    "RESALE": 1,
+    "ADDRESS": "Civil Lines, Kanpur",
+    "LONGITUDE": 80.3319,
+    "LATITUDE": 26.4499
+  }'
+```
+
+**Response:**
+```json
+{
+  "predicted_price": 8900667.25,
+  "city": "Kanpur",
+  "features_used": 15
+}
+```
 
 ## 🐳 Docker Deployment
 
 ```bash
-docker-compose up
+# Build and run
+docker-compose up --build
+
+# Or run directly
+docker build -t house-price-prediction .
+docker run -p 5001:5001 house-price-prediction
 ```
 
 ## 📊 Model Performance
 
-- **R2 Score**: 90.97% (Test Set)
-- **Target**: 85% ✓ Exceeded
+- **R² Score**: 91.07%
+- **Features**: 15 engineered features
+- **Location-aware**: Different predictions for different cities
+- **Response Time**: ~39ms per prediction
+
+## 🏗️ Architecture
+
+- **ML Model**: Random Forest Regressor (200 estimators)
+- **Preprocessing**: Custom feature engineering with city extraction
+- **API**: Flask REST API with input validation
+- **Deployment**: Containerized with Gunicorn WSGI server
 
 ## 📝 License
 
